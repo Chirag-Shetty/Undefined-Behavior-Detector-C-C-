@@ -1,6 +1,6 @@
 ══════════════════════════════════════════════════════════════════════
   UB Time Bomb Report
-  Source : testcases/cve_cases/gcc_bug_58640.c
+  Source : /home/chira/ub-detector/testcases/cve_cases/gcc_bug_58640.c
   O0 IR  : gcc_bug_58640_O0.ll
   O2 IR  : gcc_bug_58640_O2.ll
 ══════════════════════════════════════════════════════════════════════

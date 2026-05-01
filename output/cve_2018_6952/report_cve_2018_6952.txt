@@ -1,6 +1,6 @@
 ══════════════════════════════════════════════════════════════════════
   UB Time Bomb Report
-  Source : testcases/cve_cases/cve_2018_6952.c
+  Source : /home/chira/ub-detector/testcases/cve_cases/cve_2018_6952.c
   O0 IR  : cve_2018_6952_O0.ll
   O2 IR  : cve_2018_6952_O2.ll
 ══════════════════════════════════════════════════════════════════════
@@ -34,10 +34,11 @@
       O2: (none)
     [basic_block_removed]
       4 basic block(s) dead-code-eliminated at -O2: if.end, if.end4, if.then, if.then3
-      O0: if.end:
-    %5 = load i32, ptr %remaining.addr, align 4, !dbg !47
-    %6 = load i32, ptr %extra, align 4, !dbg !49
-    %
+      O0: if.then:
+    store i32 -1, ptr %retval, align 4, !dbg !45
+    br label %return, !dbg !45
+  if.end:
+    %5 = load i32, pt
       O2: (blocks removed entirely)
 
 ══════════════════════════════════════════════════════════════════════

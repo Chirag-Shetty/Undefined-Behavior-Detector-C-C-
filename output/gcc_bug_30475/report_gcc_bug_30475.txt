@@ -1,6 +1,6 @@
 ══════════════════════════════════════════════════════════════════════
   UB Time Bomb Report
-  Source : testcases/cve_cases/gcc_bug_30475.c
+  Source : /home/chira/ub-detector/testcases/cve_cases/gcc_bug_30475.c
   O0 IR  : gcc_bug_30475_O0.ll
   O2 IR  : gcc_bug_30475_O2.ll
 ══════════════════════════════════════════════════════════════════════
@@ -66,11 +66,9 @@
       O2: (none)
     [basic_block_removed]
       3 basic block(s) dead-code-eliminated at -O2: cond.end, cond.false, cond.true
-      O0: cond.false:
-    br label %cond.end, !dbg !96
-  cond.true:
-    %6 = load ptr, ptr %p1, align 8, !dbg !97
-    br label %co
+      O0: cond.end:
+    %cond = phi ptr [ %6, %cond.true ], [ @.str.1, %cond.false ], !dbg !96
+    %call3 = call i32 (ptr, ...) @p
       O2: (blocks removed entirely)
     [comparison_eliminated]
       2 comparison instruction(s) constant-folded away at -O2

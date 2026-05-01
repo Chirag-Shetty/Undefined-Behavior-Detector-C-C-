@@ -1,6 +1,6 @@
 ══════════════════════════════════════════════════════════════════════
   UB Time Bomb Report
-  Source : testcases/cve_cases/clang_bug_21530.c
+  Source : /home/chira/ub-detector/testcases/cve_cases/clang_bug_21530.c
   O0 IR  : clang_bug_21530_O0.ll
   O2 IR  : clang_bug_21530_O2.ll
 ══════════════════════════════════════════════════════════════════════

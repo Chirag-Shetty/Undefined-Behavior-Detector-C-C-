@@ -1,0 +1,66 @@
+══════════════════════════════════════════════════════════════════════
+  UB Time Bomb Report
+  Source : /home/chira/ub-detector/testcases/null_deref.c
+  O0 IR  : null_deref_O0.ll
+  O2 IR  : null_deref_O2.ll
+══════════════════════════════════════════════════════════════════════
+
+──────────────────────────────────────────────────────────────────────
+[LOW]  @main  —  Strict Aliasing Violation
+  line 16: this works at -O0 but breaks at -O2
+         because of STRICT ALIASING VIOLATION
+  ┌─ source:
+  │ ►   16 │ int main(void) {
+  │     17 │     int x = 42;
+  │     18 │     printf("%d\n", use_ptr(&x));
+  │     19 │     return 0;
+  └─
+
+  Explanation:
+    Accessing memory through a pointer of a different type (e.g.
+    reading an int via float*) violates the strict aliasing rule. The
+    compiler may reorder or eliminate loads/stores based on the
+    assumption they cannot alias.
+
+  Evidence:
+    • Significant instruction-count reduction without branch elimination — consistent with load/store reordering
+
+  IR Changes:
+    [instruction_count_collapse]
+      Instruction count dropped 8→3 (62% reduction) at -O2
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @use_ptr  —  Null Pointer Dereference (Dead Code)
+  line 6: this works at -O0 but breaks at -O2
+         because of NULL POINTER DEREFERENCE
+  ┌─ source:
+  │ ►    6 │ int use_ptr(int *ptr) {
+  │      7 │     if (ptr) {
+  │      8 │         return *ptr;
+  │      9 │     } else {
+  └─
+
+  Explanation:
+    Dereferencing a null pointer is undefined behaviour. The compiler
+    may remove an entire code path that it proves must pass through a
+    null deref, treating that path as dead code.
+
+  Evidence:
+    • O0 IR: explicit 'store ptr null' — null pointer assigned in code
+    • Basic block dead-code-eliminated at -O2
+    • O0 IR: 1 null-pointer comparison(s) (icmp ne/eq ptr ... null)
+
+  IR Changes:
+    [basic_block_removed]
+      1 basic block(s) dead-code-eliminated at -O2: if.else
+      O0: if.else:
+    call void @llvm.dbg.declare(metadata ptr %null_ptr, metadata !33, metadata !DIExpression()), !dbg !35
+    s
+      O2: (blocks removed entirely)
+
+══════════════════════════════════════════════════════════════════════
+  SUMMARY: 2 function(s) affected
+    HIGH=1  MEDIUM=0  LOW=1
+    1× Strict Aliasing Violation
+    1× Null Pointer Dereference (Dead Code)
+══════════════════════════════════════════════════════════════════════
