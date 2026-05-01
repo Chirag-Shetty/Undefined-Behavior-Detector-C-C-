@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -57,6 +58,31 @@ def _banner() -> None:
   ║   silently breaks at -O2 due to compiler optimisation    ║
   ╚══════════════════════════════════════════════════════════╝
 """ + RESET)
+
+
+def _is_wsl() -> bool:
+    """Return True when running inside Windows Subsystem for Linux."""
+    try:
+        return "microsoft" in Path("/proc/version").read_text(errors="ignore").lower()
+    except OSError:
+        return False
+
+
+def _html_link(path: Path) -> str:
+    """
+    Return a string the user can click / paste to open the HTML report.
+    - On WSL: convert to \\\\wsl.localhost\\... Windows UNC path.
+    - Otherwise: return a file:// URL.
+    """
+    if _is_wsl():
+        try:
+            win_path = subprocess.check_output(
+                ["wslpath", "-w", str(path)], text=True
+            ).strip()
+            return win_path
+        except Exception:
+            pass
+    return path.as_uri()  # file:///home/...
 
 
 # ── pipeline ──────────────────────────────────────────────────────────────────
@@ -111,7 +137,8 @@ def analyse_file(
     # ── Report: HTML (optional) ───────────────────────────────────────────────
     if html:
         html_path = reporter.write_html(classification, diff, src, out_dir)
-        print(_c(f"  HTML report → {html_path}", DIM))
+        link = _html_link(html_path)
+        print(_c(f"  HTML report → ", DIM) + _c(link, CYAN, BOLD))
 
     if verbose and classification.classifications:
         _print_verbose(classification)
