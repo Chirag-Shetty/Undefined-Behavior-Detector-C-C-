@@ -1,0 +1,61 @@
+══════════════════════════════════════════════════════════════════════
+  UB Time Bomb Report
+  Source : testcases/signed_overflow.c
+  O0 IR  : signed_overflow_O0.ll
+  O2 IR  : signed_overflow_O2.ll
+══════════════════════════════════════════════════════════════════════
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @check_overflow  —  Signed Integer Overflow
+  line 7: this works at -O0 but breaks at -O2
+         because of SIGNED INTEGER OVERFLOW
+  ┌─ source:
+  │ ►    7 │ int check_overflow(int x) {
+  │      8 │     // At -O0: evaluates the comparison at runtime
+  │      9 │     // At -O2: optimizer knows signed overflow is UB, so x+1 > x is ALWAYS
+  │     10 │     //         true → the else branch is dead-code eliminated
+  └─
+
+  Explanation:
+    Signed integer arithmetic overflow is undefined in C/C++. The
+    compiler assumes it never happens and uses that to eliminate
+    branches (e.g. x+1 > x is always true at -O2).
+
+  Evidence:
+    • O0 IR contains 'add nsw'/'sub nsw' — signed overflow is UB and the flag is a compiler hint
+    • O0 IR has 1 signed comparison(s) (icmp sgt/slt) — typical overflow-check pattern
+    • Conditional branch eliminated at -O2 (optimizer proved condition always true/false via no-overflow assumption)
+    • Overflow flag (nsw/nuw) dropped/exploited at -O2
+    • Return value constant-folded — optimizer proved result from overflow assumption
+
+  IR Changes:
+    [conditional_branch_eliminated]
+      1 of 1 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)
+      O0: br i1 %cmp, label %if.then, label %if.else, !dbg !32
+      O2: (none)
+    [basic_block_removed]
+      2 basic block(s) dead-code-eliminated at -O2: if.else, if.then
+      O0: if.else:
+    store i32 0, ptr %retval, align 4, !dbg !35
+    br label %return, !dbg !35
+  if.then:
+    store i32 1, ptr 
+      O2: (blocks removed entirely)
+    [return_constant_folded]
+      Function always returns constant {'1'} at -O2 (was runtime value at -O0); optimizer proved result under UB assumption
+      O0: ret i32 %2, !dbg !37
+      O2: ret i32 1, !dbg !27
+    [comparison_eliminated]
+      1 comparison instruction(s) constant-folded away at -O2
+      O0: %cmp = icmp sgt i32 %add, %1, !dbg !31
+      O2: (none)
+    [overflow_flag_dropped]
+      Arithmetic overflow flags {'nsw'} present at -O0 are dropped/exploited at -O2 (1 of 1 flagged instruction(s) eliminated)
+      O0: %add = add nsw i32 %0, 1, !dbg !29
+      O2: (none — all eliminated)
+
+══════════════════════════════════════════════════════════════════════
+  SUMMARY: 1 function(s) affected
+    HIGH=1  MEDIUM=0  LOW=0
+    1× Signed Integer Overflow
+══════════════════════════════════════════════════════════════════════
