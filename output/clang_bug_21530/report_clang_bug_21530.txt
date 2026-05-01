@@ -1,0 +1,94 @@
+══════════════════════════════════════════════════════════════════════
+  UB Time Bomb Report
+  Source : testcases/cve_cases/clang_bug_21530.c
+  O0 IR  : clang_bug_21530_O0.ll
+  O2 IR  : clang_bug_21530_O2.ll
+══════════════════════════════════════════════════════════════════════
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @fast_inv_sqrt_clang21530  —  Signed Integer Overflow
+  line 69: this works at -O0 but breaks at -O2
+         because of SIGNED INTEGER OVERFLOW
+  ┌─ source:
+  │ ►   69 │ float fast_inv_sqrt_clang21530(float number)
+  │     70 │ {
+  │     71 │     long i;
+  │     72 │     float x2, y;
+  └─
+
+  Explanation:
+    Signed integer arithmetic overflow is undefined in C/C++. The
+    compiler assumes it never happens and uses that to eliminate
+    branches (e.g. x+1 > x is always true at -O2).
+
+  Evidence:
+    • O0 IR contains 'add nsw'/'sub nsw' — signed overflow is UB and the flag is a compiler hint
+    • Overflow flag (nsw/nuw) dropped/exploited at -O2
+    • Return value constant-folded — optimizer proved result from overflow assumption
+
+  IR Changes:
+    [return_constant_folded]
+      Function always returns constant {'poison'} at -O2 (was runtime value at -O0); optimizer proved result under UB assumption
+      O0: ret float %10, !dbg !90
+      O2: ret float poison, !dbg !62
+    [overflow_flag_dropped]
+      Arithmetic overflow flags {'nsw'} present at -O0 are dropped/exploited at -O2 (1 of 1 flagged instruction(s) eliminated)
+      O0: %sub = sub nsw i64 1597463007, %shr, !dbg !77
+      O2: (none — all eliminated)
+
+──────────────────────────────────────────────────────────────────────
+[LOW]  @main  —  Strict Aliasing Violation
+  line 89: this works at -O0 but breaks at -O2
+         because of STRICT ALIASING VIOLATION
+  ┌─ source:
+  │ ►   89 │ int main(void)
+  │     90 │ {
+  │     91 │     uint32_t ieee_one = 0x3f800000u;   /* IEEE 754 representation of 1.0f */
+  │     92 │ 
+  └─
+
+  Explanation:
+    Accessing memory through a pointer of a different type (e.g.
+    reading an int via float*) violates the strict aliasing rule. The
+    compiler may reorder or eliminate loads/stores based on the
+    assumption they cannot alias.
+
+  Evidence:
+    • Significant instruction-count reduction without branch elimination — consistent with load/store reordering
+    • Module contains strict aliasing violation in: bits_to_float_clang21530, reinterpret_via_memory_clang21530, fast_inv_sqrt_clang21530 — optimizer effects propagated to caller
+
+  IR Changes:
+    [instruction_count_collapse]
+      Instruction count dropped 17→5 (71% reduction) at -O2
+
+──────────────────────────────────────────────────────────────────────
+[LOW]  @reinterpret_via_memory_clang21530  —  Strict Aliasing Violation
+  line 47: this works at -O0 but breaks at -O2
+         because of STRICT ALIASING VIOLATION
+  ┌─ source:
+  │ ►   47 │ float reinterpret_via_memory_clang21530(uint32_t x)
+  │     48 │ {
+  │     49 │     uint32_t storage = x;
+  │     50 │ 
+  └─
+
+  Explanation:
+    Accessing memory through a pointer of a different type (e.g.
+    reading an int via float*) violates the strict aliasing rule. The
+    compiler may reorder or eliminate loads/stores based on the
+    assumption they cannot alias.
+
+  Evidence:
+    • O0 IR: store and load to same alloca use different types (e.g. store i32, load float) — strict aliasing violation
+    • Significant instruction-count reduction without branch elimination — consistent with load/store reordering
+
+  IR Changes:
+    [instruction_count_collapse]
+      Instruction count dropped 13→5 (62% reduction) at -O2
+
+══════════════════════════════════════════════════════════════════════
+  SUMMARY: 3 function(s) affected
+    HIGH=1  MEDIUM=0  LOW=2
+    1× Signed Integer Overflow
+    2× Strict Aliasing Violation
+══════════════════════════════════════════════════════════════════════

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UB Time Bomb Report</title>
+<style>
+:root{
+  --bg:#0f1117;--bg2:#1a1d27;--bg3:#252836;--border:#2e3149;
+  --text:#e2e8f0;--muted:#94a3b8;--accent:#6366f1;
+  --high:#ef4444;--medium:#f97316;--low:#3b82f6;
+  --code-bg:#0d1117;--code-text:#e2e8f0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      line-height:1.6;padding:0 0 4rem}
+a{color:var(--accent)}
+
+/* ── header ── */
+.hero{background:linear-gradient(135deg,#1e1b4b 0%,#0f1117 60%);
+       border-bottom:1px solid var(--border);padding:2.5rem 3rem 2rem}
+.hero h1{font-size:1.8rem;font-weight:700;letter-spacing:-.5px;
+          background:linear-gradient(90deg,#818cf8,#c084fc);
+          -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--muted);font-size:.9rem;margin-top:.3rem}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+            gap:.5rem;margin-top:1rem}
+.meta-item{background:#ffffff08;border:1px solid var(--border);border-radius:8px;
+            padding:.5rem .8rem;font-size:.82rem}
+.meta-item span{color:var(--muted);margin-right:.5rem}
+
+/* ── stats bar ── */
+.stats{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+        padding:1.2rem 3rem;background:var(--bg2);border-bottom:1px solid var(--border)}
+.stat-box{display:flex;flex-direction:column;align-items:center;
+           min-width:60px;padding:.4rem .8rem;border-radius:8px;
+           border:1px solid var(--border)}
+.stat-box .num{font-size:1.6rem;font-weight:800;line-height:1}
+.stat-box .lbl{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.stat-box.high{border-color:#ef444440;background:#ef444410}
+.stat-box.high .num{color:var(--high)}
+.stat-box.medium{border-color:#f9731640;background:#f9731610}
+.stat-box.medium .num{color:var(--medium)}
+.stat-box.low{border-color:#3b82f640;background:#3b82f610}
+.stat-box.low .num{color:var(--low)}
+.stat-pill{padding:.25rem .75rem;border-radius:99px;font-size:.8rem;
+            border:1px solid;font-weight:500}
+
+/* ── content ── */
+.content{padding:2rem 3rem;max-width:1200px}
+
+/* ── finding card ── */
+.finding{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+          margin-bottom:1.5rem;overflow:hidden;transition:box-shadow .2s}
+.finding:hover{box-shadow:0 4px 24px #0006}
+.finding.high  {border-left:4px solid var(--high)}
+.finding.medium{border-left:4px solid var(--medium)}
+.finding.low   {border-left:4px solid var(--low)}
+
+.finding-header{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;
+                 padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
+.sev-badge{padding:.2rem .6rem;border-radius:6px;font-size:.75rem;
+            font-weight:700;letter-spacing:.5px}
+.sev-badge.high  {background:#ef444420;color:var(--high)}
+.sev-badge.medium{background:#f9731620;color:var(--medium)}
+.sev-badge.low   {background:#3b82f620;color:var(--low)}
+.fn-name{font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:600}
+.loc{color:var(--muted);font-size:.85rem}
+.cat-badge{padding:.25rem .7rem;border-radius:99px;font-size:.8rem;
+            font-weight:500;border:1px solid;margin-left:auto}
+
+.expl{padding:1rem 1.25rem;color:var(--muted);font-size:.9rem;
+       border-bottom:1px solid var(--border)}
+
+details{border-bottom:1px solid var(--border)}
+details:last-child{border-bottom:none}
+summary{padding:.8rem 1.25rem;cursor:pointer;font-weight:600;font-size:.9rem;
+         color:var(--accent);user-select:none;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▶ ';font-size:.7rem;margin-right:.4rem;
+                 transition:transform .2s}
+details[open] summary::before{content:'▼ ';}
+
+/* ── source table ── */
+.src-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;
+            font-size:.82rem;margin:0 1.25rem 1rem;width:calc(100% - 2.5rem)}
+.src-table td{padding:.15rem .5rem;white-space:pre}
+.src-table .ln{color:var(--muted);text-align:right;padding-right:1rem;
+                user-select:none;min-width:3rem}
+.src-table tr.highlight{background:#6366f115}
+.src-table tr.highlight .code{color:#a5b4fc;font-weight:600}
+
+/* ── evidence list ── */
+.ev-list{padding:.5rem 1.25rem 1rem 2.5rem;font-size:.88rem;color:var(--muted)}
+.ev-list li{margin:.3rem 0}
+
+/* ── IR cards ── */
+.ir-card{margin:0 1.25rem 1rem;border:1px solid var(--border);
+          border-radius:8px;overflow:hidden}
+.ir-label{padding:.4rem .8rem;background:#ffffff08;font-family:'JetBrains Mono',monospace;
+           font-size:.78rem;color:var(--accent);font-weight:600;border-bottom:1px solid var(--border)}
+.ir-desc{padding:.5rem .8rem;font-size:.85rem;color:var(--muted)}
+.ir-cols{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)}
+.ir-col{padding:.5rem .8rem}
+.ir-col:first-child{border-right:1px solid var(--border)}
+.ir-badge{display:inline-block;padding:.1rem .5rem;border-radius:4px;
+           font-size:.72rem;font-weight:700;margin-bottom:.4rem}
+.ir-badge.o0{background:#22c55e20;color:#22c55e}
+.ir-badge.o2{background:#ef444420;color:#ef4444}
+.ir-col pre{font-family:'JetBrains Mono',monospace;font-size:.78rem;
+             color:var(--code-text);white-space:pre-wrap;word-break:break-all}
+
+.no-findings{background:#16a34a15;border:1px solid #16a34a40;border-radius:12px;
+              padding:2rem;text-align:center;color:#4ade80;font-size:1.1rem}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="hero">
+  <h1>⚡ UB Time Bomb Report</h1>
+  <p>Undefined behaviour patterns that work at -O0 but silently break at -O2</p>
+  <div class="meta-grid">
+    <div class="meta-item"><span>Source</span>testcases/cve_cases/gcc_bug_30475.c</div>
+    <div class="meta-item"><span>-O0 IR</span>/home/chira/ub-detector/output/gcc_bug_30475/gcc_bug_30475_O0.ll</div>
+    <div class="meta-item"><span>-O2 IR</span>/home/chira/ub-detector/output/gcc_bug_30475/gcc_bug_30475_O2.ll</div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat-box high">  <div class="num">3</div>  <div class="lbl">High</div>  </div>
+  <div class="stat-box medium"><div class="num">0</div><div class="lbl">Medium</div></div>
+  <div class="stat-box low">  <div class="num">0</div>  <div class="lbl">Low</div>  </div>
+  <div class="stat-box">      <div class="num">3</div> <div class="lbl">Total</div></div>
+  <div class="stat-pill" style="border-color:#f97316;color:#f97316">⚡ Signed Integer Overflow ×2</div><div class="stat-pill" style="border-color:#ef4444;color:#ef4444">💥 Null Pointer Dereference (Dead Code) ×1</div>
+</div>
+
+<div class="content">
+
+<article class="finding high">
+  <div class="finding-header">
+    <span class="sev-badge high">HIGH</span>
+    <span class="fn-name">@compute_end_gcc30475</span>
+    <span class='loc'>line 53</span>
+    <span class="cat-badge" style="background:#f9731620;color:#f97316;border-color:#f9731640">
+      ⚡ Signed Integer Overflow
+    </span>
+  </div>
+
+  <p class="expl">Signed integer arithmetic overflow is undefined in C/C++. The compiler assumes it never happens and uses that to eliminate branches (e.g. x+1 &gt; x is always true at -O2).</p>
+
+  <details open>
+    <summary>Source context</summary>
+    <table class="src-table"><tr><td class="ln">52</td><td class="code"> */</td></tr>
+<tr class="highlight"><td class="ln">53</td><td class="code">int compute_end_gcc30475(int start, int length)</td></tr>
+<tr><td class="ln">54</td><td class="code">{</td></tr>
+<tr><td class="ln">55</td><td class="code">    if (start + length &lt; start) {     /* UB: signed overflow */</td></tr>
+<tr><td class="ln">56</td><td class="code">        return -1;                    /* &quot;overflow error&quot; — dead at -O2 */</td></tr>
+<tr><td class="ln">57</td><td class="code">    }</td></tr>
+</table>
+  </details>
+
+  <details open>
+    <summary>Evidence (3 signal(s))</summary>
+    <ul class="ev-list"><li>O0 IR contains &#x27;add nsw&#x27;/&#x27;sub nsw&#x27; — signed overflow is UB and the flag is a compiler hint</li><li>O0 IR has 1 signed comparison(s) (icmp sgt/slt) — typical overflow-check pattern</li><li>Conditional branch eliminated at -O2 (optimizer proved condition always true/false via no-overflow assumption)</li></ul>
+  </details>
+
+  <details>
+    <summary>IR diff (2 change(s))</summary>
+    
+<div class="ir-card">
+  <div class="ir-label">conditional_branch_eliminated</div>
+  <p class="ir-desc">1 of 1 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  br i1 %cmp, label %if.then, label %if.end, !dbg !72</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (none)</pre>
+    </div>
+  </div>
+</div>
+<div class="ir-card">
+  <div class="ir-label">basic_block_removed</div>
+  <p class="ir-desc">2 basic block(s) dead-code-eliminated at -O2: if.end, if.then</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  if.then:
+    store i32 -1, ptr %retval, align 4, !dbg !73
+    br label %return, !dbg !73
+  if.end:
+    %3 = load i32, ptr %start.addr, align 4, !dbg !75
+    %4 = load i32, ptr %length.addr, align 4, !dbg !76
+    %add1 = add nsw i32 %3, %4, !dbg !77
+    store i32 %add1, ptr %retval, align 4, !dbg !78
+    br label %return, !dbg !78</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (blocks removed entirely)</pre>
+    </div>
+  </div>
+</div>
+  </details>
+</article>
+<article class="finding high">
+  <div class="finding-header">
+    <span class="sev-badge high">HIGH</span>
+    <span class="fn-name">@main</span>
+    <span class='loc'>line 61</span>
+    <span class="cat-badge" style="background:#f9731620;color:#f97316;border-color:#f9731640">
+      ⚡ Signed Integer Overflow
+    </span>
+  </div>
+
+  <p class="expl">Signed integer arithmetic overflow is undefined in C/C++. The compiler assumes it never happens and uses that to eliminate branches (e.g. x+1 &gt; x is always true at -O2).</p>
+
+  <details open>
+    <summary>Source context</summary>
+    <table class="src-table"><tr><td class="ln">60</td><td class="code"></td></tr>
+<tr class="highlight"><td class="ln">61</td><td class="code">int main(void)</td></tr>
+<tr><td class="ln">62</td><td class="code">{</td></tr>
+<tr><td class="ln">63</td><td class="code">    char buf[64] = &quot;hello&quot;;</td></tr>
+<tr><td class="ln">64</td><td class="code"></td></tr>
+<tr><td class="ln">65</td><td class="code">    /* Pointer version */</td></tr>
+</table>
+  </details>
+
+  <details open>
+    <summary>Evidence (1 signal(s))</summary>
+    <ul class="ev-list"><li>Conditional branch eliminated at -O2 (optimizer proved condition always true/false via no-overflow assumption)</li></ul>
+  </details>
+
+  <details>
+    <summary>IR diff (3 change(s))</summary>
+    
+<div class="ir-card">
+  <div class="ir-label">conditional_branch_eliminated</div>
+  <p class="ir-desc">1 of 1 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  br i1 %tobool, label %cond.true, label %cond.false, !dbg !96</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (none)</pre>
+    </div>
+  </div>
+</div>
+<div class="ir-card">
+  <div class="ir-label">basic_block_removed</div>
+  <p class="ir-desc">3 basic block(s) dead-code-eliminated at -O2: cond.end, cond.false, cond.true</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  cond.false:
+    br label %cond.end, !dbg !96
+  cond.true:
+    %6 = load ptr, ptr %p1, align 8, !dbg !97
+    br label %cond.end, !dbg !96
+  cond.end:
+    %cond = phi ptr [ %6, %cond.true ], [ @.str.1, %cond.false ], !dbg !96
+    %call3 = call i32 (ptr, ...) @printf(ptr noundef @.str, ptr noundef %cond), !dbg !98
+    %7 = load ptr, ptr %p2, align 8, !dbg !99
+    %tobool4 = icmp ne ptr %7, null, !dbg !99
+    %8 = zext i1 %tobool4 to i64, !dbg !99
+    %cond5 = select i1 %tobool4, ptr @.str.3, ptr @.str.1, !dbg !99
+    %call6 = call i32 (ptr, ...) @printf(ptr noundef @.str.2, ptr noundef %cond5), !dbg !100
+    %call7 = call i32 @compute_end_gcc30475(i32 noundef 10, i32 noundef 5), !dbg !101
+    %call8 = call i32 (ptr, ...) @printf(ptr noundef @.str.4, i32 noundef %call7), !dbg !102
+    %call9 = call i32 @compute_end_gcc30475(i32 noundef 2147483647, i32 noundef 1), !dbg !103
+    %call10 = call i32 (ptr, ...) @printf(ptr noundef @.str.5, i32 noundef %call9), !dbg !104
+    ret i32 0, !dbg !105</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (blocks removed entirely)</pre>
+    </div>
+  </div>
+</div>
+<div class="ir-card">
+  <div class="ir-label">comparison_eliminated</div>
+  <p class="ir-desc">2 comparison instruction(s) constant-folded away at -O2</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  %tobool = icmp ne ptr %5, null, !dbg !96
+  %tobool4 = icmp ne ptr %7, null, !dbg !99</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (none)</pre>
+    </div>
+  </div>
+</div>
+  </details>
+</article>
+<article class="finding high">
+  <div class="finding-header">
+    <span class="sev-badge high">HIGH</span>
+    <span class="fn-name">@safe_advance_gcc30475</span>
+    <span class='loc'>line 32</span>
+    <span class="cat-badge" style="background:#ef444420;color:#ef4444;border-color:#ef444440">
+      💥 Null Pointer Dereference (Dead Code)
+    </span>
+  </div>
+
+  <p class="expl">Dereferencing a null pointer is undefined behaviour. The compiler may remove an entire code path that it proves must pass through a null deref, treating that path as dead code.</p>
+
+  <details open>
+    <summary>Source context</summary>
+    <table class="src-table"><tr><td class="ln">31</td><td class="code"> */</td></tr>
+<tr class="highlight"><td class="ln">32</td><td class="code">char *safe_advance_gcc30475(char *base, int offset)</td></tr>
+<tr><td class="ln">33</td><td class="code">{</td></tr>
+<tr><td class="ln">34</td><td class="code">    /*</td></tr>
+<tr><td class="ln">35</td><td class="code">     * Classic vulnerable pattern from GCC bug 30475.</td></tr>
+<tr><td class="ln">36</td><td class="code">     * `base + offset` has undefined behaviour if it overflows a signed</td></tr>
+</table>
+  </details>
+
+  <details open>
+    <summary>Evidence (2 signal(s))</summary>
+    <ul class="ev-list"><li>O0 IR: explicit &#x27;store ptr null&#x27; — null pointer assigned in code</li><li>Basic block dead-code-eliminated at -O2</li></ul>
+  </details>
+
+  <details>
+    <summary>IR diff (2 change(s))</summary>
+    
+<div class="ir-card">
+  <div class="ir-label">conditional_branch_eliminated</div>
+  <p class="ir-desc">1 of 1 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  br i1 %cmp, label %if.then, label %if.end, !dbg !51</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (none)</pre>
+    </div>
+  </div>
+</div>
+<div class="ir-card">
+  <div class="ir-label">basic_block_removed</div>
+  <p class="ir-desc">2 basic block(s) dead-code-eliminated at -O2: if.end, if.then</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  if.then:
+    store ptr null, ptr %retval, align 8, !dbg !52
+    br label %return, !dbg !52
+  if.end:
+    %3 = load ptr, ptr %base.addr, align 8, !dbg !54
+    %4 = load i32, ptr %offset.addr, align 4, !dbg !55
+    %idx.ext1 = sext i32 %4 to i64, !dbg !56
+    %add.ptr2 = getelementptr inbounds i8, ptr %3, i64 %idx.ext1, !dbg !56
+    store ptr %add.ptr2, ptr %retval, align 8, !dbg !57
+    br label %return, !dbg !57</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (blocks removed entirely)</pre>
+    </div>
+  </div>
+</div>
+  </details>
+</article>
+</div>
+
+</body>
+</html>

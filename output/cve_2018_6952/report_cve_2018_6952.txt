@@ -1,0 +1,47 @@
+══════════════════════════════════════════════════════════════════════
+  UB Time Bomb Report
+  Source : testcases/cve_cases/cve_2018_6952.c
+  O0 IR  : cve_2018_6952_O0.ll
+  O2 IR  : cve_2018_6952_O2.ll
+══════════════════════════════════════════════════════════════════════
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @another_hunk_simplified  —  Signed Integer Overflow
+  line 34: this works at -O0 but breaks at -O2
+         because of SIGNED INTEGER OVERFLOW
+  ┌─ source:
+  │ ►   34 │ int another_hunk_simplified(int remaining, int extra_lines)
+  │     35 │ {
+  │     36 │     int bytes_per_line = 80;   /* assumed max line length */
+  │     37 │ 
+  └─
+
+  Explanation:
+    Signed integer arithmetic overflow is undefined in C/C++. The
+    compiler assumes it never happens and uses that to eliminate
+    branches (e.g. x+1 > x is always true at -O2).
+
+  Evidence:
+    • O0 IR contains 'add nsw'/'sub nsw' — signed overflow is UB and the flag is a compiler hint
+    • O0 IR has 2 signed comparison(s) (icmp sgt/slt) — typical overflow-check pattern
+    • Conditional branch eliminated at -O2 (optimizer proved condition always true/false via no-overflow assumption)
+
+  IR Changes:
+    [conditional_branch_eliminated]
+      2 of 2 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)
+      O0: br i1 %cmp, label %if.then, label %if.end, !dbg !44
+  br i1 %cmp2, label %if.then3, label %if.end4, !dbg !52
+      O2: (none)
+    [basic_block_removed]
+      4 basic block(s) dead-code-eliminated at -O2: if.end, if.end4, if.then, if.then3
+      O0: if.end:
+    %5 = load i32, ptr %remaining.addr, align 4, !dbg !47
+    %6 = load i32, ptr %extra, align 4, !dbg !49
+    %
+      O2: (blocks removed entirely)
+
+══════════════════════════════════════════════════════════════════════
+  SUMMARY: 1 function(s) affected
+    HIGH=1  MEDIUM=0  LOW=0
+    1× Signed Integer Overflow
+══════════════════════════════════════════════════════════════════════

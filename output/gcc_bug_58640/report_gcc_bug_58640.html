@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UB Time Bomb Report</title>
+<style>
+:root{
+  --bg:#0f1117;--bg2:#1a1d27;--bg3:#252836;--border:#2e3149;
+  --text:#e2e8f0;--muted:#94a3b8;--accent:#6366f1;
+  --high:#ef4444;--medium:#f97316;--low:#3b82f6;
+  --code-bg:#0d1117;--code-text:#e2e8f0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      line-height:1.6;padding:0 0 4rem}
+a{color:var(--accent)}
+
+/* ── header ── */
+.hero{background:linear-gradient(135deg,#1e1b4b 0%,#0f1117 60%);
+       border-bottom:1px solid var(--border);padding:2.5rem 3rem 2rem}
+.hero h1{font-size:1.8rem;font-weight:700;letter-spacing:-.5px;
+          background:linear-gradient(90deg,#818cf8,#c084fc);
+          -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--muted);font-size:.9rem;margin-top:.3rem}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+            gap:.5rem;margin-top:1rem}
+.meta-item{background:#ffffff08;border:1px solid var(--border);border-radius:8px;
+            padding:.5rem .8rem;font-size:.82rem}
+.meta-item span{color:var(--muted);margin-right:.5rem}
+
+/* ── stats bar ── */
+.stats{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+        padding:1.2rem 3rem;background:var(--bg2);border-bottom:1px solid var(--border)}
+.stat-box{display:flex;flex-direction:column;align-items:center;
+           min-width:60px;padding:.4rem .8rem;border-radius:8px;
+           border:1px solid var(--border)}
+.stat-box .num{font-size:1.6rem;font-weight:800;line-height:1}
+.stat-box .lbl{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.stat-box.high{border-color:#ef444440;background:#ef444410}
+.stat-box.high .num{color:var(--high)}
+.stat-box.medium{border-color:#f9731640;background:#f9731610}
+.stat-box.medium .num{color:var(--medium)}
+.stat-box.low{border-color:#3b82f640;background:#3b82f610}
+.stat-box.low .num{color:var(--low)}
+.stat-pill{padding:.25rem .75rem;border-radius:99px;font-size:.8rem;
+            border:1px solid;font-weight:500}
+
+/* ── content ── */
+.content{padding:2rem 3rem;max-width:1200px}
+
+/* ── finding card ── */
+.finding{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+          margin-bottom:1.5rem;overflow:hidden;transition:box-shadow .2s}
+.finding:hover{box-shadow:0 4px 24px #0006}
+.finding.high  {border-left:4px solid var(--high)}
+.finding.medium{border-left:4px solid var(--medium)}
+.finding.low   {border-left:4px solid var(--low)}
+
+.finding-header{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;
+                 padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
+.sev-badge{padding:.2rem .6rem;border-radius:6px;font-size:.75rem;
+            font-weight:700;letter-spacing:.5px}
+.sev-badge.high  {background:#ef444420;color:var(--high)}
+.sev-badge.medium{background:#f9731620;color:var(--medium)}
+.sev-badge.low   {background:#3b82f620;color:var(--low)}
+.fn-name{font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:600}
+.loc{color:var(--muted);font-size:.85rem}
+.cat-badge{padding:.25rem .7rem;border-radius:99px;font-size:.8rem;
+            font-weight:500;border:1px solid;margin-left:auto}
+
+.expl{padding:1rem 1.25rem;color:var(--muted);font-size:.9rem;
+       border-bottom:1px solid var(--border)}
+
+details{border-bottom:1px solid var(--border)}
+details:last-child{border-bottom:none}
+summary{padding:.8rem 1.25rem;cursor:pointer;font-weight:600;font-size:.9rem;
+         color:var(--accent);user-select:none;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▶ ';font-size:.7rem;margin-right:.4rem;
+                 transition:transform .2s}
+details[open] summary::before{content:'▼ ';}
+
+/* ── source table ── */
+.src-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;
+            font-size:.82rem;margin:0 1.25rem 1rem;width:calc(100% - 2.5rem)}
+.src-table td{padding:.15rem .5rem;white-space:pre}
+.src-table .ln{color:var(--muted);text-align:right;padding-right:1rem;
+                user-select:none;min-width:3rem}
+.src-table tr.highlight{background:#6366f115}
+.src-table tr.highlight .code{color:#a5b4fc;font-weight:600}
+
+/* ── evidence list ── */
+.ev-list{padding:.5rem 1.25rem 1rem 2.5rem;font-size:.88rem;color:var(--muted)}
+.ev-list li{margin:.3rem 0}
+
+/* ── IR cards ── */
+.ir-card{margin:0 1.25rem 1rem;border:1px solid var(--border);
+          border-radius:8px;overflow:hidden}
+.ir-label{padding:.4rem .8rem;background:#ffffff08;font-family:'JetBrains Mono',monospace;
+           font-size:.78rem;color:var(--accent);font-weight:600;border-bottom:1px solid var(--border)}
+.ir-desc{padding:.5rem .8rem;font-size:.85rem;color:var(--muted)}
+.ir-cols{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)}
+.ir-col{padding:.5rem .8rem}
+.ir-col:first-child{border-right:1px solid var(--border)}
+.ir-badge{display:inline-block;padding:.1rem .5rem;border-radius:4px;
+           font-size:.72rem;font-weight:700;margin-bottom:.4rem}
+.ir-badge.o0{background:#22c55e20;color:#22c55e}
+.ir-badge.o2{background:#ef444420;color:#ef4444}
+.ir-col pre{font-family:'JetBrains Mono',monospace;font-size:.78rem;
+             color:var(--code-text);white-space:pre-wrap;word-break:break-all}
+
+.no-findings{background:#16a34a15;border:1px solid #16a34a40;border-radius:12px;
+              padding:2rem;text-align:center;color:#4ade80;font-size:1.1rem}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="hero">
+  <h1>⚡ UB Time Bomb Report</h1>
+  <p>Undefined behaviour patterns that work at -O0 but silently break at -O2</p>
+  <div class="meta-grid">
+    <div class="meta-item"><span>Source</span>testcases/cve_cases/gcc_bug_58640.c</div>
+    <div class="meta-item"><span>-O0 IR</span>/home/chira/ub-detector/output/gcc_bug_58640/gcc_bug_58640_O0.ll</div>
+    <div class="meta-item"><span>-O2 IR</span>/home/chira/ub-detector/output/gcc_bug_58640/gcc_bug_58640_O2.ll</div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat-box high">  <div class="num">2</div>  <div class="lbl">High</div>  </div>
+  <div class="stat-box medium"><div class="num">0</div><div class="lbl">Medium</div></div>
+  <div class="stat-box low">  <div class="num">0</div>  <div class="lbl">Low</div>  </div>
+  <div class="stat-box">      <div class="num">2</div> <div class="lbl">Total</div></div>
+  <div class="stat-pill" style="border-color:#eab308;color:#eab308">❓ Use of Uninitialized Variable ×2</div>
+</div>
+
+<div class="content">
+
+<article class="finding high">
+  <div class="finding-header">
+    <span class="sev-badge high">HIGH</span>
+    <span class="fn-name">@process_gcc58640</span>
+    <span class='loc'>line 33</span>
+    <span class="cat-badge" style="background:#eab30820;color:#eab308;border-color:#eab30840">
+      ❓ Use of Uninitialized Variable
+    </span>
+  </div>
+
+  <p class="expl">Reading an uninitialized variable is undefined behaviour. The compiler may assume the variable holds any convenient value and constant-fold comparisons against it.</p>
+
+  <details open>
+    <summary>Source context</summary>
+    <table class="src-table"><tr><td class="ln">32</td><td class="code"> */</td></tr>
+<tr class="highlight"><td class="ln">33</td><td class="code">int process_gcc58640(int mode, int input)</td></tr>
+<tr><td class="ln">34</td><td class="code">{</td></tr>
+<tr><td class="ln">35</td><td class="code">    Result r;   /* NOT initialized here — intentional model of bug 58640 */</td></tr>
+<tr><td class="ln">36</td><td class="code"></td></tr>
+<tr><td class="ln">37</td><td class="code">    if (mode &gt; 0) {</td></tr>
+</table>
+  </details>
+
+  <details open>
+    <summary>Evidence (3 signal(s))</summary>
+    <ul class="ev-list"><li>O0 IR: 1 alloca(s) read before any store — uninitialized variable use (%code2)</li><li>Comparison eliminated at -O2 (consistent with uninitialized value folding)</li><li>No nsw/nuw arithmetic flags — rules out signed overflow as primary cause</li></ul>
+  </details>
+
+  <details>
+    <summary>IR diff (3 change(s))</summary>
+    
+<div class="ir-card">
+  <div class="ir-label">conditional_branch_eliminated</div>
+  <p class="ir-desc">2 of 2 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  br i1 %cmp, label %if.then, label %if.end, !dbg !45
+  br i1 %cmp3, label %if.then4, label %if.end5, !dbg !59</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (none)</pre>
+    </div>
+  </div>
+</div>
+<div class="ir-card">
+  <div class="ir-label">basic_block_removed</div>
+  <p class="ir-desc">4 basic block(s) dead-code-eliminated at -O2: if.end, if.end5, if.then, if.then4</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  if.then:
+    %1 = load i32, ptr %input.addr, align 4, !dbg !46
+    %cmp1 = icmp sgt i32 %1, 100, !dbg !48
+    %2 = zext i1 %cmp1 to i64, !dbg !49
+    %cond = select i1 %cmp1, i32 1, i32 0, !dbg !49
+    %code = getelementptr inbounds %struct.Result, ptr %r, i32 0, i32 0, !dbg !50
+    store i32 %cond, ptr %code, align 4, !dbg !51
+    %3 = load i32, ptr %input.addr, align 4, !dbg !52
+    %value = getelementptr inbounds %struct.Result, ptr %r, i32 0, i32 1, !dbg !53
+    store i32 %3, ptr %value, align 4, !dbg !54
+    br label %if.end, !dbg !55
+  if.end:
+    %code2 = getelementptr inbounds %struct.Result, ptr %r, i32 0, i32 0, !dbg !56
+    %4 = load i32, ptr %code2, align 4, !dbg !56
+    %cmp3 = icmp ne i32 %4, 0, !dbg !58
+    br i1 %cmp3, label %if.then4, label %if.end5, !dbg !59
+  if.then4:
+    store i32 -1, ptr %retval, align 4, !dbg !60
+    br label %return, !dbg !60
+  if.end5:
+    store i32 0, ptr %retval, align 4, !dbg !62
+    br label %return, !dbg !62</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (blocks removed entirely)</pre>
+    </div>
+  </div>
+</div>
+<div class="ir-card">
+  <div class="ir-label">comparison_eliminated</div>
+  <p class="ir-desc">2 comparison instruction(s) constant-folded away at -O2</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  %cmp = icmp sgt i32 %0, 0, !dbg !44
+  %cmp1 = icmp sgt i32 %1, 100, !dbg !48
+  %cmp3 = icmp ne i32 %4, 0, !dbg !58</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  %cmp1 = icmp sgt i32 %input, 100</pre>
+    </div>
+  </div>
+</div>
+  </details>
+</article>
+<article class="finding high">
+  <div class="finding-header">
+    <span class="sev-badge high">HIGH</span>
+    <span class="fn-name">@uninit_branch_gcc58640</span>
+    <span class='loc'>line 61</span>
+    <span class="cat-badge" style="background:#eab30820;color:#eab308;border-color:#eab30840">
+      ❓ Use of Uninitialized Variable
+    </span>
+  </div>
+
+  <p class="expl">Reading an uninitialized variable is undefined behaviour. The compiler may assume the variable holds any convenient value and constant-fold comparisons against it.</p>
+
+  <details open>
+    <summary>Source context</summary>
+    <table class="src-table"><tr><td class="ln">60</td><td class="code"> */</td></tr>
+<tr class="highlight"><td class="ln">61</td><td class="code">int uninit_branch_gcc58640(int flag)</td></tr>
+<tr><td class="ln">62</td><td class="code">{</td></tr>
+<tr><td class="ln">63</td><td class="code">    int status;   /* uninitialized */</td></tr>
+<tr><td class="ln">64</td><td class="code"></td></tr>
+<tr><td class="ln">65</td><td class="code">    if (flag) {</td></tr>
+</table>
+  </details>
+
+  <details open>
+    <summary>Evidence (2 signal(s))</summary>
+    <ul class="ev-list"><li>Return value and comparison both constant-folded — optimizer assumed a specific uninitialized value</li><li>No signed-overflow IR signals (nsw/sgt/slt) — constant-folding better explained by uninitialized value assumption</li></ul>
+  </details>
+
+  <details>
+    <summary>IR diff (4 change(s))</summary>
+    
+<div class="ir-card">
+  <div class="ir-label">conditional_branch_eliminated</div>
+  <p class="ir-desc">1 of 1 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  br i1 %tobool, label %if.then, label %if.end, !dbg !73</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (none)</pre>
+    </div>
+  </div>
+</div>
+<div class="ir-card">
+  <div class="ir-label">basic_block_removed</div>
+  <p class="ir-desc">2 basic block(s) dead-code-eliminated at -O2: if.end, if.then</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  if.then:
+    store i32 1, ptr %status, align 4, !dbg !74
+    br label %if.end, !dbg !76
+  if.end:
+    %1 = load i32, ptr %status, align 4, !dbg !77
+    ret i32 %1, !dbg !78</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (blocks removed entirely)</pre>
+    </div>
+  </div>
+</div>
+<div class="ir-card">
+  <div class="ir-label">return_constant_folded</div>
+  <p class="ir-desc">Function always returns constant {&#x27;1&#x27;} at -O2 (was runtime value at -O0); optimizer proved result under UB assumption</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  ret i32 %1, !dbg !78</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  ret i32 1, !dbg !49</pre>
+    </div>
+  </div>
+</div>
+<div class="ir-card">
+  <div class="ir-label">comparison_eliminated</div>
+  <p class="ir-desc">1 comparison instruction(s) constant-folded away at -O2</p>
+  <div class="ir-cols">
+    <div class="ir-col">
+      <div class="ir-badge o0">-O0</div>
+      <pre>  %tobool = icmp ne i32 %0, 0, !dbg !71</pre>
+    </div>
+    <div class="ir-col">
+      <div class="ir-badge o2">-O2</div>
+      <pre>  (none)</pre>
+    </div>
+  </div>
+</div>
+  </details>
+</article>
+</div>
+
+</body>
+</html>

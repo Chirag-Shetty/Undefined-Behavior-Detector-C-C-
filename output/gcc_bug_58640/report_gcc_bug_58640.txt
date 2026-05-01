@@ -1,0 +1,95 @@
+══════════════════════════════════════════════════════════════════════
+  UB Time Bomb Report
+  Source : testcases/cve_cases/gcc_bug_58640.c
+  O0 IR  : gcc_bug_58640_O0.ll
+  O2 IR  : gcc_bug_58640_O2.ll
+══════════════════════════════════════════════════════════════════════
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @process_gcc58640  —  Use of Uninitialized Variable
+  line 33: this works at -O0 but breaks at -O2
+         because of UNINITIALIZED VARIABLE USE
+  ┌─ source:
+  │ ►   33 │ int process_gcc58640(int mode, int input)
+  │     34 │ {
+  │     35 │     Result r;   /* NOT initialized here — intentional model of bug 58640 */
+  │     36 │ 
+  └─
+
+  Explanation:
+    Reading an uninitialized variable is undefined behaviour. The
+    compiler may assume the variable holds any convenient value and
+    constant-fold comparisons against it.
+
+  Evidence:
+    • O0 IR: 1 alloca(s) read before any store — uninitialized variable use (%code2)
+    • Comparison eliminated at -O2 (consistent with uninitialized value folding)
+    • No nsw/nuw arithmetic flags — rules out signed overflow as primary cause
+
+  IR Changes:
+    [conditional_branch_eliminated]
+      2 of 2 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)
+      O0: br i1 %cmp, label %if.then, label %if.end, !dbg !45
+  br i1 %cmp3, label %if.then4, label %if.end5, !dbg !59
+      O2: (none)
+    [basic_block_removed]
+      4 basic block(s) dead-code-eliminated at -O2: if.end, if.end5, if.then, if.then4
+      O0: if.then:
+    %1 = load i32, ptr %input.addr, align 4, !dbg !46
+    %cmp1 = icmp sgt i32 %1, 100, !dbg !48
+    %2 = zext 
+      O2: (blocks removed entirely)
+    [comparison_eliminated]
+      2 comparison instruction(s) constant-folded away at -O2
+      O0: %cmp = icmp sgt i32 %0, 0, !dbg !44
+  %cmp1 = icmp sgt i32 %1, 100, !dbg !48
+  %cmp3 = icmp ne i32 %4, 0, !dbg !58
+      O2: %cmp1 = icmp sgt i32 %input, 100
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @uninit_branch_gcc58640  —  Use of Uninitialized Variable
+  line 61: this works at -O0 but breaks at -O2
+         because of UNINITIALIZED VARIABLE USE
+  ┌─ source:
+  │ ►   61 │ int uninit_branch_gcc58640(int flag)
+  │     62 │ {
+  │     63 │     int status;   /* uninitialized */
+  │     64 │ 
+  └─
+
+  Explanation:
+    Reading an uninitialized variable is undefined behaviour. The
+    compiler may assume the variable holds any convenient value and
+    constant-fold comparisons against it.
+
+  Evidence:
+    • Return value and comparison both constant-folded — optimizer assumed a specific uninitialized value
+    • No signed-overflow IR signals (nsw/sgt/slt) — constant-folding better explained by uninitialized value assumption
+
+  IR Changes:
+    [conditional_branch_eliminated]
+      1 of 1 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)
+      O0: br i1 %tobool, label %if.then, label %if.end, !dbg !73
+      O2: (none)
+    [basic_block_removed]
+      2 basic block(s) dead-code-eliminated at -O2: if.end, if.then
+      O0: if.then:
+    store i32 1, ptr %status, align 4, !dbg !74
+    br label %if.end, !dbg !76
+  if.end:
+    %1 = load i32, ptr
+      O2: (blocks removed entirely)
+    [return_constant_folded]
+      Function always returns constant {'1'} at -O2 (was runtime value at -O0); optimizer proved result under UB assumption
+      O0: ret i32 %1, !dbg !78
+      O2: ret i32 1, !dbg !49
+    [comparison_eliminated]
+      1 comparison instruction(s) constant-folded away at -O2
+      O0: %tobool = icmp ne i32 %0, 0, !dbg !71
+      O2: (none)
+
+══════════════════════════════════════════════════════════════════════
+  SUMMARY: 2 function(s) affected
+    HIGH=2  MEDIUM=0  LOW=0
+    2× Use of Uninitialized Variable
+══════════════════════════════════════════════════════════════════════

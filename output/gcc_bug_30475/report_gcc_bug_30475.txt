@@ -1,0 +1,120 @@
+══════════════════════════════════════════════════════════════════════
+  UB Time Bomb Report
+  Source : testcases/cve_cases/gcc_bug_30475.c
+  O0 IR  : gcc_bug_30475_O0.ll
+  O2 IR  : gcc_bug_30475_O2.ll
+══════════════════════════════════════════════════════════════════════
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @compute_end_gcc30475  —  Signed Integer Overflow
+  line 53: this works at -O0 but breaks at -O2
+         because of SIGNED INTEGER OVERFLOW
+  ┌─ source:
+  │ ►   53 │ int compute_end_gcc30475(int start, int length)
+  │     54 │ {
+  │     55 │     if (start + length < start) {     /* UB: signed overflow */
+  │     56 │         return -1;                    /* "overflow error" — dead at -O2 */
+  └─
+
+  Explanation:
+    Signed integer arithmetic overflow is undefined in C/C++. The
+    compiler assumes it never happens and uses that to eliminate
+    branches (e.g. x+1 > x is always true at -O2).
+
+  Evidence:
+    • O0 IR contains 'add nsw'/'sub nsw' — signed overflow is UB and the flag is a compiler hint
+    • O0 IR has 1 signed comparison(s) (icmp sgt/slt) — typical overflow-check pattern
+    • Conditional branch eliminated at -O2 (optimizer proved condition always true/false via no-overflow assumption)
+
+  IR Changes:
+    [conditional_branch_eliminated]
+      1 of 1 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)
+      O0: br i1 %cmp, label %if.then, label %if.end, !dbg !72
+      O2: (none)
+    [basic_block_removed]
+      2 basic block(s) dead-code-eliminated at -O2: if.end, if.then
+      O0: if.then:
+    store i32 -1, ptr %retval, align 4, !dbg !73
+    br label %return, !dbg !73
+  if.end:
+    %3 = load i32, pt
+      O2: (blocks removed entirely)
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @main  —  Signed Integer Overflow
+  line 61: this works at -O0 but breaks at -O2
+         because of SIGNED INTEGER OVERFLOW
+  ┌─ source:
+  │ ►   61 │ int main(void)
+  │     62 │ {
+  │     63 │     char buf[64] = "hello";
+  │     64 │ 
+  └─
+
+  Explanation:
+    Signed integer arithmetic overflow is undefined in C/C++. The
+    compiler assumes it never happens and uses that to eliminate
+    branches (e.g. x+1 > x is always true at -O2).
+
+  Evidence:
+    • Conditional branch eliminated at -O2 (optimizer proved condition always true/false via no-overflow assumption)
+
+  IR Changes:
+    [conditional_branch_eliminated]
+      1 of 1 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)
+      O0: br i1 %tobool, label %cond.true, label %cond.false, !dbg !96
+      O2: (none)
+    [basic_block_removed]
+      3 basic block(s) dead-code-eliminated at -O2: cond.end, cond.false, cond.true
+      O0: cond.false:
+    br label %cond.end, !dbg !96
+  cond.true:
+    %6 = load ptr, ptr %p1, align 8, !dbg !97
+    br label %co
+      O2: (blocks removed entirely)
+    [comparison_eliminated]
+      2 comparison instruction(s) constant-folded away at -O2
+      O0: %tobool = icmp ne ptr %5, null, !dbg !96
+  %tobool4 = icmp ne ptr %7, null, !dbg !99
+      O2: (none)
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @safe_advance_gcc30475  —  Null Pointer Dereference (Dead Code)
+  line 32: this works at -O0 but breaks at -O2
+         because of NULL POINTER DEREFERENCE
+  ┌─ source:
+  │ ►   32 │ char *safe_advance_gcc30475(char *base, int offset)
+  │     33 │ {
+  │     34 │     /*
+  │     35 │      * Classic vulnerable pattern from GCC bug 30475.
+  └─
+
+  Explanation:
+    Dereferencing a null pointer is undefined behaviour. The compiler
+    may remove an entire code path that it proves must pass through a
+    null deref, treating that path as dead code.
+
+  Evidence:
+    • O0 IR: explicit 'store ptr null' — null pointer assigned in code
+    • Basic block dead-code-eliminated at -O2
+
+  IR Changes:
+    [conditional_branch_eliminated]
+      1 of 1 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)
+      O0: br i1 %cmp, label %if.then, label %if.end, !dbg !51
+      O2: (none)
+    [basic_block_removed]
+      2 basic block(s) dead-code-eliminated at -O2: if.end, if.then
+      O0: if.then:
+    store ptr null, ptr %retval, align 8, !dbg !52
+    br label %return, !dbg !52
+  if.end:
+    %3 = load ptr, 
+      O2: (blocks removed entirely)
+
+══════════════════════════════════════════════════════════════════════
+  SUMMARY: 3 function(s) affected
+    HIGH=3  MEDIUM=0  LOW=0
+    2× Signed Integer Overflow
+    1× Null Pointer Dereference (Dead Code)
+══════════════════════════════════════════════════════════════════════

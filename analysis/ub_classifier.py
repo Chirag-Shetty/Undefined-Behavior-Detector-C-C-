@@ -426,6 +426,17 @@ def _score_uninit_var(
         score += 1
         evidence.append("No nsw/nuw arithmetic flags — rules out signed overflow as primary cause")
 
+    # Tiebreaker: if there are no nsw flags AND no signed comparisons (sgt/slt),
+    # but we do see constant-folding, prefer uninit over signed-overflow.
+    # Signed overflow ALWAYS needs either nsw or sgt/slt to be credible.
+    no_overflow_signal = not _has_nsw_nuw(fn0) and not _signed_comparisons(fn0)
+    if no_overflow_signal and (ret_folded or cmp_elim):
+        score += 1
+        evidence.append(
+            "No signed-overflow IR signals (nsw/sgt/slt) — "
+            "constant-folding better explained by uninitialized value assumption"
+        )
+
     return score, evidence
 
 

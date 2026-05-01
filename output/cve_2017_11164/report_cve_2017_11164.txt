@@ -1,0 +1,88 @@
+══════════════════════════════════════════════════════════════════════
+  UB Time Bomb Report
+  Source : testcases/cve_cases/cve_2017_11164.c
+  O0 IR  : cve_2017_11164_O0.ll
+  O2 IR  : cve_2017_11164_O2.ll
+══════════════════════════════════════════════════════════════════════
+
+──────────────────────────────────────────────────────────────────────
+[LOW]  @main  —  Strict Aliasing Violation
+  line 59: this works at -O0 but breaks at -O2
+         because of STRICT ALIASING VIOLATION
+  ┌─ source:
+  │ ►   59 │ int main(void)
+  │     60 │ {
+  │     61 │     char subject[] = "hello world";
+  │     62 │     int  len       = (int)strlen(subject);
+  └─
+
+  Explanation:
+    Accessing memory through a pointer of a different type (e.g.
+    reading an int via float*) violates the strict aliasing rule. The
+    compiler may reorder or eliminate loads/stores based on the
+    assumption they cannot alias.
+
+  Evidence:
+    • Significant instruction-count reduction without branch elimination — consistent with load/store reordering
+
+  IR Changes:
+    [instruction_count_collapse]
+      Instruction count dropped 24→7 (71% reduction) at -O2
+
+──────────────────────────────────────────────────────────────────────
+[HIGH]  @pcre_exec_simplified  —  Signed Integer Overflow
+  line 33: this works at -O0 but breaks at -O2
+         because of SIGNED INTEGER OVERFLOW
+  ┌─ source:
+  │ ►   33 │ int pcre_exec_simplified(const char *subject, int length, int startoffset)
+  │     34 │ {
+  │     35 │     /*
+  │     36 │      * BUG: startoffset is a signed int.  When startoffset is near INT_MAX,
+  └─
+
+  Explanation:
+    Signed integer arithmetic overflow is undefined in C/C++. The
+    compiler assumes it never happens and uses that to eliminate
+    branches (e.g. x+1 > x is always true at -O2).
+
+  Evidence:
+    • O0 IR contains 'add nsw'/'sub nsw' — signed overflow is UB and the flag is a compiler hint
+    • O0 IR has 4 signed comparison(s) (icmp sgt/slt) — typical overflow-check pattern
+    • Conditional branch eliminated at -O2 (optimizer proved condition always true/false via no-overflow assumption)
+    • Overflow flag (nsw/nuw) dropped/exploited at -O2
+
+  IR Changes:
+    [conditional_branch_eliminated]
+      3 of 3 conditional branch(es) eliminated by optimizer (UB assumption collapsed the condition)
+      O0: br i1 %cmp, label %if.then, label %if.end, !dbg !41
+  br i1 %cmp1, label %if.then3, label %lor.lhs.false, !dbg !47
+  br 
+      O2: (none)
+    [basic_block_removed]
+      5 basic block(s) dead-code-eliminated at -O2: if.end, if.end4, if.then, if.then3, lor.lhs.false
+      O0: if.then3:
+    store i32 -24, ptr %retval, align 4, !dbg !52
+    br label %return, !dbg !52
+  if.then:
+    store i32 -24,
+      O2: (blocks removed entirely)
+    [comparison_eliminated]
+      1 comparison instruction(s) constant-folded away at -O2
+      O0: %cmp = icmp slt i32 %add, %1, !dbg !40
+  %cmp1 = icmp slt i32 %2, 0, !dbg !46
+  %cmp2 = icmp sgt i32 %3, %4, !dbg !50
+  
+      O2: %cmp1 = icmp slt i32 %startoffset, 0, !dbg !34
+  %cmp2 = icmp sgt i32 %startoffset, %length
+  %cmp5 = icmp sge i32 %star
+    [overflow_flag_dropped]
+      Arithmetic overflow flags {'nsw'} present at -O0 are dropped/exploited at -O2 (1 of 1 flagged instruction(s) eliminated)
+      O0: %add = add nsw i32 %0, 1024, !dbg !38
+      O2: (none — all eliminated)
+
+══════════════════════════════════════════════════════════════════════
+  SUMMARY: 2 function(s) affected
+    HIGH=1  MEDIUM=0  LOW=1
+    1× Strict Aliasing Violation
+    1× Signed Integer Overflow
+══════════════════════════════════════════════════════════════════════
