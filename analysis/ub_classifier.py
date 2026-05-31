@@ -27,6 +27,7 @@ Usage:
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -198,16 +199,23 @@ def _has_type_punning_load(fn: Function) -> bool:
     """
     True when a float/double load follows an integer store to the same alloca
     (or vice-versa) — the opaque-pointer strict aliasing signature in clang-18.
+
+    Uses a set of stored types per alloca so that multiple stores of different
+    types (e.g. union-style accesses) are all considered, rather than
+    overwriting on each store (last-write-wins bug).
     """
-    # Collect alloca names and the types stored to each
-    stored_types: dict[str, str] = {}   # alloca_name → stored type
+    # alloca_name → set of stored types (collects ALL stores, not just the last)
+    stored_types: dict[str, set[str]] = defaultdict(set)
     loaded_types: dict[str, str] = {}   # alloca_name → loaded type
+
+    int_types = {"i8", "i16", "i32", "i64", "i128"}
+    fp_types  = {"float", "double", "half", "fp128", "x86_fp80"}
 
     for instr in _instrs(fn):
         # store <type> <val>, ptr %name
         sm = re.match(r'store\s+(\S+)\s+.+,\s+ptr\s+(%[\w.$]+)', instr.raw)
         if sm:
-            stored_types[sm.group(2)] = sm.group(1)
+            stored_types[sm.group(2)].add(sm.group(1))
 
         # %r = load <type>, ptr %name
         lm = re.match(r'%[\w.$]+\s*=\s*load\s+(\S+),\s+ptr\s+(%[\w.$]+)', instr.raw)
@@ -215,40 +223,43 @@ def _has_type_punning_load(fn: Function) -> bool:
             loaded_types[lm.group(2)] = lm.group(1)
 
     for ptr, load_type in loaded_types.items():
-        store_type = stored_types.get(ptr)
-        if store_type and store_type != load_type:
-            # Integer store / float load (or vice-versa) — aliasing violation
-            int_types  = {"i8", "i16", "i32", "i64", "i128"}
-            fp_types   = {"float", "double", "half", "fp128", "x86_fp80"}
-            if (
-                (store_type in int_types and load_type in fp_types) or
-                (store_type in fp_types  and load_type in int_types)
-            ):
-                return True
+        for store_type in stored_types.get(ptr, set()):
+            if store_type != load_type:
+                # Integer store / float load (or vice-versa) — aliasing violation
+                if (
+                    (store_type in int_types and load_type in fp_types) or
+                    (store_type in fp_types  and load_type in int_types)
+                ):
+                    return True
     return False
 
 
 def _alloca_loaded_before_store(fn: Function) -> list[str]:
     """
-    Return alloca names that are loaded before any store to them.
-    This is the IR signature of an uninitialized variable read.
+    Return alloca names that are loaded anywhere in the function but have
+    NO store to them anywhere in the function.
+
+    This two-pass approach avoids false positives from the original linear
+    single-pass scan, which mis-flagged conditionally-initialized variables
+    when a store in one basic block appeared before a load in a mutually
+    exclusive block.  The conservative criterion — "never stored at all" —
+    is always a true uninitialized-variable read.
     """
-    uninit: list[str] = []
     stored: set[str] = set()
-    # Track stores from function params (they're always initialized)
+    loaded: set[str] = set()
+
     for instr in _instrs(fn):
         if instr.opcode == "store":
-            # store <type> <val>, ptr %name
             m = re.search(r'store\s+\S+\s+\S+,\s+ptr\s+(%[\w.$]+)', instr.raw)
             if m:
                 stored.add(m.group(1))
         elif instr.opcode == "load":
             m = re.match(r'%[\w.$]+\s*=\s*load\s+\S+,\s+ptr\s+(%[\w.$]+)', instr.raw)
             if m:
-                ptr = m.group(1)
-                if ptr not in stored:
-                    uninit.append(ptr)
-    return uninit
+                loaded.add(m.group(1))
+
+    # Only pointers that are loaded but NEVER stored are definitely uninit.
+    return sorted(loaded - stored)
 
 
 # ---------------------------------------------------------------------------
@@ -484,14 +495,15 @@ class UBClassifier:
                     result.unclassified.append(f)
                 continue
 
-            classification = self._classify_function(
+            classifications = self._classify_function(
                 fd, fn0,
                 module_has_type_punning=module_has_type_punning,
                 punning_functions=punning_functions,
             )
-            if classification.category == UBCategory.UNKNOWN:
+            # A single UNKNOWN entry means no category scored above threshold
+            if len(classifications) == 1 and classifications[0].category == UBCategory.UNKNOWN:
                 result.unclassified.extend(fd.findings)
-            result.classifications.append(classification)
+            result.classifications.extend(classifications)
 
         return result
 
@@ -505,7 +517,17 @@ class UBClassifier:
         fn0: Function,
         module_has_type_punning: bool = False,
         punning_functions: list[str] | None = None,
-    ) -> UBClassification:
+    ) -> list[UBClassification]:
+        """
+        Classify one changed function into one or more UB categories.
+
+        Returns a list (usually length 1).  When two categories both score at
+        or above the medium threshold AND within 1 point of the winner, both
+        are emitted — a function can legitimately exhibit multiple UB types
+        (e.g. signed overflow AND strict aliasing in a type-punning loop).
+        Returns a single UNKNOWN entry when no category scores above the low
+        threshold.
+        """
         punning_functions = punning_functions or []
         scorers = [
             (UBCategory.SIGNED_OVERFLOW, lambda fd, fn: _score_signed_overflow(fd, fn)),
@@ -528,7 +550,7 @@ class UBClassifier:
         best_cat, best_score, best_evidence = results[0]
 
         if best_score < _THRESHOLDS["low"]:
-            return UBClassification(
+            return [UBClassification(
                 function_name=fd.name,
                 category=UBCategory.UNKNOWN,
                 confidence="low",
@@ -536,17 +558,40 @@ class UBClassifier:
                 source_file=fn0.source_file,
                 source_line=fn0.source_line,
                 findings=fd.findings,
-            )
+            )]
 
-        return UBClassification(
-            function_name=fd.name,
-            category=best_cat,
-            confidence=_confidence(best_score),
-            evidence=best_evidence,
-            source_file=fn0.source_file,
-            source_line=fn0.source_line,
-            findings=fd.findings,
-        )
+        # Emit the winner plus any runner-up that scores >= medium AND within
+        # 1 point of the best.  This handles functions with multiple real UB
+        # patterns (e.g. fast-inverse-sqrt: strict aliasing + signed overflow).
+        classifications: list[UBClassification] = []
+        for cat, score, evidence in results:
+            if score < _THRESHOLDS["medium"]:
+                break   # sorted descending — no further candidate qualifies
+            if score < best_score - 1:
+                break   # too far behind the winner
+            classifications.append(UBClassification(
+                function_name=fd.name,
+                category=cat,
+                confidence=_confidence(score),
+                evidence=evidence,
+                source_file=fn0.source_file,
+                source_line=fn0.source_line,
+                findings=fd.findings,
+            ))
+
+        # Guarantee at least one result (the winner)
+        if not classifications:
+            classifications.append(UBClassification(
+                function_name=fd.name,
+                category=best_cat,
+                confidence=_confidence(best_score),
+                evidence=best_evidence,
+                source_file=fn0.source_file,
+                source_line=fn0.source_line,
+                findings=fd.findings,
+            ))
+
+        return classifications
 
 
 # ---------------------------------------------------------------------------

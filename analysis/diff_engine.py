@@ -606,13 +606,23 @@ class DiffEngine:
         self, fn0: Function, fn2: Function, fd: FunctionDiff
     ) -> None:
         def arith_with_flags(fn: Function) -> list[tuple[str, set[str]]]:
-            """Return (raw_instr, {flags}) for arithmetic instrs with UB flags."""
+            """Return (raw_instr, {flags}) for arithmetic instrs with UB flags.
+
+            Covers both integer arithmetic (nsw/nuw on add/sub/mul/shl) and
+            pointer arithmetic (inbounds on getelementptr).  Both are UB
+            assumptions that the optimizer exploits to remove overflow checks.
+            """
             results = []
             for instr in fn.all_instructions:
                 if instr.opcode in {"add", "sub", "mul", "shl"}:
                     flags = set(_OVERFLOW_FLAGS.findall(instr.raw))
                     if flags:
                         results.append((instr.raw, flags))
+                elif instr.opcode == "getelementptr" and "inbounds" in instr.raw:
+                    # `getelementptr inbounds` carries the same UB guarantee as nsw:
+                    # the result must not wrap the address space.  Compilers exploit
+                    # this to eliminate pointer-wrap security checks.
+                    results.append((instr.raw, {"inbounds"}))
             return results
 
         flagged_O0 = arith_with_flags(fn0)

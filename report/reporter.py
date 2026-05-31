@@ -65,10 +65,10 @@ class Reporter:
         W = 70
 
         def sep(ch="─"): lines.append(ch * W)
-        def hdr(t): lines.append(f"{_BOLD if colour else ''}{'═'*W}{_RESET if colour else ''}")
+        def hdr(): lines.append(f"{_BOLD if colour else ''}{'═'*W}{_RESET if colour else ''}")
         def h(t):   lines.append(f"{_BOLD if colour else ''}{t}{_RESET if colour else ''}")
 
-        hdr("═")
+        hdr()
         h(f"  UB Time Bomb Report")
         src = source_path or Path(diff.source_file)
         h(f"  Source : {src}")
@@ -119,9 +119,11 @@ class Reporter:
                 lines.append(f"    [{f.change_kind.value}]")
                 lines.append(f"      {f.description}")
                 if f.ir_O0_snippet:
-                    lines.append(f"      O0: {f.ir_O0_snippet.strip()[:120]}")
+                    s = f.ir_O0_snippet.strip()
+                    lines.append(f"      O0: {s[:120]}{'…' if len(s) > 120 else ''}")
                 if f.ir_O2_snippet:
-                    lines.append(f"      O2: {f.ir_O2_snippet.strip()[:120]}")
+                    s = f.ir_O2_snippet.strip()
+                    lines.append(f"      O2: {s[:120]}{'…' if len(s) > 120 else ''}")
             lines.append("")
 
         sep("═")

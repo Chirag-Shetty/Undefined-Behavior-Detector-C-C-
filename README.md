@@ -28,6 +28,22 @@ No external Python packages required — standard library only.
 
 ---
 
+## Running Tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The test suite (68 tests, stdlib `unittest` only) covers:
+
+| Test module | What is tested |
+|---|---|
+| `tests/test_ir_parser.py` | Module parsing, function/block/instruction detection, branch & return parsing |
+| `tests/test_diff_engine.py` | All 7 detection passes (positive + negative + property assertions) |
+| `tests/test_ub_classifier.py` | IR helper predicates, all 4 category scorers, top-level classifier |
+
+---
+
 ## Installation
 
 ```bash
@@ -212,6 +228,16 @@ C source file
   Text report (stdout + .txt)
   HTML report (dark-themed, interactive)
 ```
+
+---
+
+## Known Limitations
+
+| Limitation | Details |
+|---|---|
+| **Inlining blind spot** | Functions that are inlined at `-O2` but appear as separate definitions at `-O0` disappear from the `-O2` IR. Because the diff only compares functions present in **both** modules, the UB inside an inlined callee is not attributed to the caller. UBSan at runtime remains the authoritative check for inlined paths. |
+| **Cross-block uninit detection** | `_alloca_loaded_before_store` uses a conservative "never stored anywhere" criterion. Conditionally-initialized variables (stored in one branch, read on the other) are **not** flagged by this heuristic — the diff-level signals (branch elimination, constant folding) are relied on instead. |
+| **GEP alias analysis** | Struct member accesses via different `getelementptr` SSA names for the same logical field cannot be matched by the text-based scanner. Struct-member type punning may produce false negatives in the strict-aliasing classifier. |
 
 ---
 

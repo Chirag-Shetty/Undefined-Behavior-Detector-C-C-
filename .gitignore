@@ -1,1 +1,16 @@
 CLAUDE.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Generated IR and reports (created at runtime by the tool)
+output/
+
+# Editor / OS artefacts
+.DS_Store
+*.swp
+*.idea/
+.vscode/
+

@@ -32,8 +32,8 @@ from typing import Optional
 # Configuration
 # ---------------------------------------------------------------------------
 
-CLANG_BIN = "clang-18"          # primary binary name
-CLANG_FALLBACKS = ["clang-18", "clang"]  # tried in order if primary fails
+CLANG_BIN = "clang-18"       # primary binary name
+CLANG_FALLBACKS = ["clang"]  # alternatives tried after the primary binary fails
 
 # Flags shared by both optimisation levels
 # -S            → emit human-readable .ll instead of bitcode
