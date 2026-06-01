@@ -23,7 +23,11 @@ eliminate the else-branch entirely and always return `1`, even when `x = INT_MAX
 On a file with no UB, the tool reports `SUMMARY: 0 function(s) affected` and exits
 with code `0`. No false positives on pure unsigned arithmetic.
 
-> **Video demo:** to be added.
+### 🎬 Full Demo Video
+
+https://github.com/Chirag-Shetty/Undefined-Behavior-Detector-C-C-/raw/main/docs/demo.mp4
+
+> If the video doesn't play inline, [click here to download it](docs/demo.mp4).
 
 ---
 
